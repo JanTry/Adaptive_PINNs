@@ -69,8 +69,8 @@ class DEAdaptation2D(AdaptationInterface2D):
         self.validate_problem_details()
 
         # Separate boundary and interior points
-        inner_x, inner_y, _, _ = separate_boundary_points_2D(
-            old_x, old_y, self.x_range, self.y_range
+        inner_x, inner_y, self.boundary_x, self.boundary_y = (
+            separate_boundary_points_2D(old_x, old_y, self.x_range, self.y_range)
         )
         boundary_points = torch.cat((self.boundary_x, self.boundary_y), dim=1)
 
@@ -122,27 +122,27 @@ class DEAdaptation2D(AdaptationInterface2D):
         # Combine boundary and interior points
         refined_points = torch.cat([boundary_points, interior_points])
         refined_points = refined_points.detach().clone().requires_grad_(True)
-
-        # Return separate x and y tensors
         return refined_points[:, 0].reshape(-1, 1), refined_points[:, 1].reshape(-1, 1)
 
     def __generate_indices(self, population_size: int, device: torch.device):
         """
         Generate random indices for DE mutation while ensuring they're all different.
+        Memory efficient implementation that avoids creating large intermediate tensors.
         """
-        idxs = torch.arange(population_size, device=device)
-        idxs_repeat = idxs.repeat(population_size, 1)
-        idxs_no_i = idxs_repeat[idxs_repeat != idxs.unsqueeze(1)].view(
-            population_size, population_size - 1
-        )
-
         r1 = torch.zeros(population_size, dtype=torch.long, device=device)
         r2 = torch.zeros(population_size, dtype=torch.long, device=device)
         r3 = torch.zeros(population_size, dtype=torch.long, device=device)
 
         for i in range(population_size):
+            # Create a permutation of indices not including i
             perm = torch.randperm(population_size - 1, device=device)
-            r1[i], r2[i], r3[i] = idxs_no_i[i][perm[:3]]
+            # Convert permutation to actual indices, skipping i
+            perm = perm + (perm >= i).long()
+
+            # Assign the first 3 indices
+            r1[i] = perm[0]
+            r2[i] = perm[1]
+            r3[i] = perm[2]
 
         return r1, r2, r3
 
@@ -151,136 +151,4 @@ class DEAdaptation2D(AdaptationInterface2D):
             "de"
             if self.max_iterations == DEFAULT_DE_MAX_ITERATIONS
             else f"de_{self.max_iterations}"
-        )
-
-
-class StaticDEAdaptation2D(AdaptationInterface2D):
-    """
-    2D implementation of Static Differential Evolution (DE) adaptation technique.
-    Unlike regular DE, this version always starts with the base points.
-    """
-
-    def __init__(
-        self,
-        max_iterations: int = DEFAULT_DE_MAX_ITERATIONS,
-        f: float = DEFAULT_DE_F,
-        cr: float = DEFAULT_DE_CR,
-    ) -> None:
-        super().__init__()
-        self.max_iterations = max_iterations
-        self.f = f
-        self.cr = cr
-        self.boundary_x = None
-        self.boundary_y = None
-
-    def set_problem_details(
-        self,
-        x_range: torch.Tensor,
-        y_range: torch.Tensor,
-        base_points_x: torch.Tensor,
-        base_points_y: torch.Tensor,
-        max_number_of_points: int,
-    ):
-        self.device = base_points_x.device
-        self.x_range = x_range
-        self.y_range = y_range
-
-        inner_x, inner_y, self.boundary_x, self.boundary_y = (
-            separate_boundary_points_2D(base_points_x, base_points_y, x_range, y_range)
-        )
-
-        self.max_number_of_points = max_number_of_points
-        self.max_number_of_interior_points = (
-            max_number_of_points - list(self.boundary_x.shape)[0]
-        )
-        self.base_points_x = base_points_x
-        self.base_points_y = base_points_y
-
-        # Store interior points for later use
-        self.inner_x = inner_x
-        self.inner_y = inner_y
-
-    def refine(
-        self, loss_function: Callable, old_x: torch.Tensor, old_y: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        self.validate_problem_details()
-
-        # Use the base interior points instead of current points
-        interior_points = torch.cat((self.inner_x, self.inner_y), dim=1)
-        interior_points = interior_points.detach().clone().requires_grad_(True)
-        boundary_points = torch.cat((self.boundary_x, self.boundary_y), dim=1)
-
-        population_size, number_of_dimensions = interior_points.shape
-
-        for _ in range(self.max_iterations):
-            # Generate random indices for DE mutation
-            r1, r2, r3 = self.__generate_indices(
-                population_size, interior_points.device
-            )
-
-            # DE mutation
-            v = interior_points[r1] + self.f * (
-                interior_points[r2] - interior_points[r3]
-            )
-
-            # Apply mirror bounds separately for x and y
-            v[:, 0] = mirror_bounds(v[:, 0], self.x_range[0], self.x_range[1])
-            v[:, 1] = mirror_bounds(v[:, 1], self.y_range[0], self.y_range[1])
-
-            # DE crossover
-            rand = torch.rand(
-                population_size, number_of_dimensions, device=interior_points.device
-            )
-            mask = rand < self.cr
-            u = torch.where(mask, v, interior_points)
-
-            # Evaluate and select
-            f_u = (
-                loss_function(u[:, 0].reshape(-1, 1), u[:, 1].reshape(-1, 1))
-                .abs()
-                .view(-1)
-            )
-            f_x = (
-                loss_function(
-                    interior_points[:, 0].reshape(-1, 1),
-                    interior_points[:, 1].reshape(-1, 1),
-                )
-                .abs()
-                .view(-1)
-            )
-            improved = f_u >= f_x
-            interior_points = torch.where(improved.unsqueeze(1), u, interior_points)
-
-        # Combine boundary and interior points
-        refined_points = torch.cat([boundary_points, interior_points])
-        refined_points = refined_points.detach().clone().requires_grad_(True)
-
-        # Return separate x and y tensors
-        return refined_points[:, 0].reshape(-1, 1), refined_points[:, 1].reshape(-1, 1)
-
-    def __generate_indices(self, population_size: int, device: torch.device):
-        """
-        Generate random indices for DE mutation while ensuring they're all different.
-        """
-        idxs = torch.arange(population_size, device=device)
-        idxs_repeat = idxs.repeat(population_size, 1)
-        idxs_no_i = idxs_repeat[idxs_repeat != idxs.unsqueeze(1)].view(
-            population_size, population_size - 1
-        )
-
-        r1 = torch.zeros(population_size, dtype=torch.long, device=device)
-        r2 = torch.zeros(population_size, dtype=torch.long, device=device)
-        r3 = torch.zeros(population_size, dtype=torch.long, device=device)
-
-        for i in range(population_size):
-            perm = torch.randperm(population_size - 1, device=device)
-            r1[i], r2[i], r3[i] = idxs_no_i[i][perm[:3]]
-
-        return r1, r2, r3
-
-    def __str__(self) -> str:
-        return (
-            "static_de"
-            if self.max_iterations == DEFAULT_DE_MAX_ITERATIONS
-            else f"static_de_{self.max_iterations}"
         )

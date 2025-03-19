@@ -52,8 +52,8 @@ class R3Adaptation2D(AdaptationInterface2D):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         self.validate_problem_details()
 
-        inner_x, inner_y, _, _ = separate_boundary_points_2D(
-            old_x, old_y, self.x_range, self.y_range
+        inner_x, inner_y, self.boundary_x, self.boundary_y = (
+            separate_boundary_points_2D(old_x, old_y, self.x_range, self.y_range)
         )
         boundary_points = torch.cat((self.boundary_x, self.boundary_y), dim=1)
 

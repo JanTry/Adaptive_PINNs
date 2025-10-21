@@ -41,11 +41,12 @@ class AllenCahnProblem2D(ProblemInterface2D):
         self, x: torch.Tensor, y: torch.Tensor, pinn: PINN_2D
     ) -> torch.Tensor:
         # enforce u(x,0) = x^2 cos(pi x)
-        t0_mask = torch.isclose(y.squeeze(-1), self.y_range[0], atol=1e-8)
+        t0_mask = torch.isin(y, self.y_range[0])
         if not t0_mask.any():
-            return torch.tensor(0.0, device=y.device)
-        x0 = x[t0_mask].reshape(-1, 1)
-        y0 = y[t0_mask].reshape(-1, 1)  # all zeros
+            return y.new_zeros(())
+
+        x0 = torch.masked_select(x, t0_mask).reshape(-1, 1)
+        y0 = torch.masked_select(y, t0_mask).reshape(-1, 1)
         target = x0**2 * torch.cos(math.pi * x0)
         return (f(pinn, x0, y0) - target).pow(2).mean()
 
@@ -53,21 +54,22 @@ class AllenCahnProblem2D(ProblemInterface2D):
         self, x: torch.Tensor, y: torch.Tensor, pinn: PINN_2D
     ) -> torch.Tensor:
         # Pair left (x=-1) and right (x=1) boundary points by matching/sorting in t.
-        tol = 1e-8
-        left_mask = torch.isclose(x.squeeze(-1), self.x_range[0], atol=tol)
-        right_mask = torch.isclose(x.squeeze(-1), self.x_range[1], atol=tol)
+        left_mask = torch.isin(x, self.x_range[0])
+        right_mask = torch.isin(x, self.x_range[1])
         if not (left_mask.any() and right_mask.any()):
-            return torch.tensor(0.0, device=x.device)
+            return x.new_zeros(())
 
-        xl, tl = x[left_mask].reshape(-1, 1), y[left_mask].reshape(-1, 1)
-        xr, tr = x[right_mask].reshape(-1, 1), y[right_mask].reshape(-1, 1)
+        xl = torch.masked_select(x, left_mask).reshape(-1, 1)
+        tl = torch.masked_select(y, left_mask).reshape(-1, 1)
+        xr = torch.masked_select(x, right_mask).reshape(-1, 1)
+        tr = torch.masked_select(y, right_mask).reshape(-1, 1)
 
         # sort by t and align counts
         il = torch.argsort(tl[:, 0])
         ir = torch.argsort(tr[:, 0])
         m = min(il.numel(), ir.numel())
         if m == 0:
-            return torch.tensor(0.0, device=x.device)
+            return x.new_zeros(())
         xl, tl = xl[il[:m]], tl[il[:m]]
         xr, tr = xr[ir[:m]], tr[ir[:m]]
 

@@ -15,8 +15,6 @@ LEARNING_RATE = 0.005  # DEF 0.005
 NUMBER_EPOCHS = 1000  # DEF 1000
 TOLERANCE = 1e-3  # DEF 1e-3
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 LOG_LEVEL = logging.INFO  # DEF logging.INFO
 
 logging.basicConfig(
@@ -32,4 +30,4 @@ elif torch.backends.mps.is_available():
     DEVICE = torch.device("mps")
 else:
     DEVICE = torch.device("cpu")
-logging.log(logging.DEBUG, f"Using device: {DEVICE}")
+logging.log(logging.INFO, f"Using device: {DEVICE}")

@@ -6,7 +6,7 @@ from src.enums.problems import Problems2D
 
 PROBLEM = Problems2D.P07_01  # Used only if not specified in the PINN training run
 MAX_POINTS_NUMBER = 40000  # DEF 40000
-TEST_POINTS_NUMBER = 65536  # DEF 65536
+TEST_POINTS_NUMBER = 16384  # DEF 65536
 MAX_ITERS = 1000  # DEF 1000
 
 LAYERS = 3  # DEF 3

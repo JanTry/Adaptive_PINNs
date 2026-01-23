@@ -23,7 +23,7 @@ from src.adaptations.adaptations_2D import (
 )
 from src.adaptations.adaptations_2D.adaptation_interface import AdaptationInterface2D
 from src.enums.problems import Problems1D, Problems2D
-from src.plots.plots_1D import N_ITERS_FILE, TIME_FILE
+from src.plots.plots_1D.plot_specific_run import N_ITERS_FILE, TIME_FILE
 
 ALL_ADAPTATIONS = [
     NoAdaptation1D(),

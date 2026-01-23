@@ -6,7 +6,7 @@ import torch
 from src.adaptations.adaptations_1D import (
     DEAdaptation1D,
     DensitySamplingAdaptation1D,
-    HMSAdaptation1D,
+    # HMSAdaptation1D,
     MiddlePointAdaptation1D,
     NoAdaptation1D,
     R3Adaptation1D,
@@ -22,7 +22,7 @@ ALL_ADAPTATIONS = [
     MiddlePointAdaptation1D(),
     DensitySamplingAdaptation1D(),
     R3Adaptation1D(),
-    HMSAdaptation1D(),
+    # HMSAdaptation1D(),
     DEAdaptation1D(),
     RandomSearchWithSelection(selection_method=SelectionMethod.ROULETTE),
     RandomSearchWithSelection(selection_method=SelectionMethod.TOURNAMENT),

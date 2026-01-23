@@ -6,6 +6,8 @@ from src.problems.problems_1D.tan_01 import Tan01Problem1D
 from src.problems.problems_1D.tan_03 import Tan03Problem1D
 from src.problems.problems_2D.p07_01_2D import P0701Problem2D
 from src.problems.problems_2D.tan_05_2D import Tan05Problem2D
+from src.problems.problems_2D.allen_cahn_2D import AllenCahnProblem2D
+from src.problems.problems_2D.convection_2D import ConvectionProblem2D
 
 
 def problem_factory_1D(problem: Problems1D):
@@ -24,6 +26,8 @@ def problem_factory_2D(problem: Problems2D):
     problem_classes = {
         Problems2D.TAN_05: Tan05Problem2D,
         Problems2D.P07_01: P0701Problem2D,
+        Problems2D.ALLEN_CAHN: AllenCahnProblem2D,
+        Problems2D.CONVECTION: ConvectionProblem2D,
     }
 
     return problem_classes[problem]()

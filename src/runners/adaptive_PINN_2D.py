@@ -6,7 +6,7 @@ from functools import partial
 import src.params.params_2D as params
 import torch
 from src.adaptations.adaptations_2D.adaptation_interface import AdaptationInterface2D
-from src.base.exit_criterion import exit_criterion_2D
+from src.base.exit_criterion import exit_criterion_2D, exit_criterion_2D_new
 from src.base.pinn_2D_core import PINN_2D, f, train_model
 from src.enums.problems import Problems2D
 from src.helpers.factories import problem_factory_2D
@@ -71,6 +71,12 @@ def train_PINN_2D(
     n_iters = -1
     optimizer = torch.optim.Adamax(pinn.parameters(), lr=params.LEARNING_RATE)
 
+    # Timing accumulators
+    time_training = 0.0
+    time_save_data = 0.0
+    time_exit_check = 0.0
+    time_refine = 0.0
+
     start_time = time.time()
     for i in range(params.MAX_ITERS):
         logging.log(logging.DEBUG, f"PINN training iter: {i}")
@@ -78,6 +84,7 @@ def train_PINN_2D(
 
         loss_fn = partial(problem.compute_loss, x=train_x, y=train_y)
 
+        t0 = time.time()
         stage_convergence_data = train_model(
             nn_approximator=pinn,
             loss_fn=loss_fn,
@@ -86,24 +93,42 @@ def train_PINN_2D(
             max_epochs=params.NUMBER_EPOCHS,
             optimizer=optimizer,
         )
+        time_training += time.time() - t0
 
         convergence_data = torch.cat((convergence_data, stage_convergence_data.cpu()))
 
         if save_training_data:
+            t0 = time.time()
             z = f(pinn=pinn, x=train_x, y=train_y).detach().cpu()
             plain_x = train_x.detach().clone().cpu()
             plain_y = train_y.detach().clone().cpu()
             point_data.append(torch.stack((plain_x, plain_y, z)).transpose(1, 0).reshape(-1, 2))
+            time_save_data += time.time() - t0
 
         loss_fn = partial(problem.f_inner_loss, pinn=pinn)
 
-        if exit_criterion_2D(test_x, test_y, loss_fn, params.TOLERANCE):
+        t0 = time.time()
+        should_exit = exit_criterion_2D_new(test_x, test_y, loss_fn, params.TOLERANCE)
+        time_exit_check += time.time() - t0
+
+        if should_exit:
             break
 
+        t0 = time.time()
         train_x, train_y = adaptation.refine(loss_function=loss_fn, old_x=train_x, old_y=train_y)
+        time_refine += time.time() - t0
 
     end_time = time.time()
     exec_time = end_time - start_time
+
+    # Log timing breakdown
+    logging.log(
+        logging.INFO,
+        f"Timing breakdown - Training: {time_training:.2f}s ({100*time_training/exec_time:.1f}%), "
+        f"Exit check: {time_exit_check:.2f}s ({100*time_exit_check/exec_time:.1f}%), "
+        f"Refine: {time_refine:.2f}s ({100*time_refine/exec_time:.1f}%), "
+        f"Save data: {time_save_data:.2f}s ({100*time_save_data/exec_time:.1f}%)",
+    )
 
     if n_iters == params.MAX_ITERS - 1:
         logging.log(
@@ -112,7 +137,7 @@ def train_PINN_2D(
         )
 
     logging.log(
-        logging.INFO,
+        logging.WARNING,
         f"Adaptation: {str(adaptation)}, Problem: {problem_type.value}, Run: {run_id}, "
         f"Finished in {n_iters+1} iterations, after {exec_time}s",
     )

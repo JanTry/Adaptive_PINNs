@@ -1,7 +1,8 @@
 from .de import DEAdaptation1D
 from .density_sampling import DensitySamplingAdaptation1D
 from .gradient import GradientDescentAdaptation1D, LangevinAdaptation1D
-from .hms import HMSAdaptation1D
+
+# from .hms import HMSAdaptation1D
 from .mcmc import MetropolisHastingsAdaptation1D
 from .middle_point import MiddlePointAdaptation1D
 from .no_adaptation import NoAdaptation1D
@@ -11,7 +12,7 @@ from .random import RandomRAdaptation1D, RandomSearchWithSelection, SelectionMet
 __all__ = [
     "DEAdaptation1D",
     "DensitySamplingAdaptation1D",
-    "HMSAdaptation1D",
+    # "HMSAdaptation1D",
     "MiddlePointAdaptation1D",
     "NoAdaptation1D",
     "R3Adaptation1D",
